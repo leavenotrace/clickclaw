@@ -7,7 +7,12 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Input, Select, Tag, Typography, Flex, Spin, theme } from 'antd'
-import { CheckCircleFilled, ExclamationCircleFilled, LinkOutlined, PlusOutlined } from '@ant-design/icons'
+import {
+  CheckCircleFilled,
+  ExclamationCircleFilled,
+  LinkOutlined,
+  PlusOutlined,
+} from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { ChannelMonogram } from '../channels/components/ChannelMonogram'
 import { ChannelQuickAuthSection } from '../channels/components/ChannelQuickAuthSection'
@@ -352,7 +357,6 @@ function StepChannel({ data, updateData }: Props): React.ReactElement {
       <Paragraph type="secondary" style={{ textAlign: 'center', marginTop: 8, fontSize: 12 }}>
         {t('setup.channel.skipHint')}
       </Paragraph>
-
     </div>
   )
 }

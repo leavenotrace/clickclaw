@@ -218,11 +218,7 @@ export function VersionsSection({
             )}
 
             {openclawUpdateInfo.status === 'error' && (
-              <Button
-                size="small"
-                icon={<CopyOutlined />}
-                onClick={() => copyOpenclawError()}
-              >
+              <Button size="small" icon={<CopyOutlined />} onClick={() => copyOpenclawError()}>
                 {t('settings.openclaw.copyError')}
               </Button>
             )}

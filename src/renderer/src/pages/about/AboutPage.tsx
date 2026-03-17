@@ -1,17 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Card, Col, Row, Skeleton, Tag, Typography } from 'antd'
-import {
-  ApiOutlined,
-  GithubOutlined,
-  GlobalOutlined,
-  LinkOutlined,
-} from '@ant-design/icons'
+import { ApiOutlined, GithubOutlined, GlobalOutlined, LinkOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
-import {
-  CLICKCLAW_API_BASE_URL,
-  CLICKCLAW_DOCS_URL,
-  CLICKCLAW_WEBSITE_URL,
-} from '@shared/urls'
+import { CLICKCLAW_API_BASE_URL, CLICKCLAW_DOCS_URL, CLICKCLAW_WEBSITE_URL } from '@shared/urls'
 import { getBrandLogo } from '../../assets/brand-logos'
 import PageHeader from '../../components/PageHeader'
 

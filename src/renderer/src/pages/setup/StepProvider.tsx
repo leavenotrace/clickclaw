@@ -708,7 +708,10 @@ function StepProvider({ data, updateData }: Props): React.ReactElement {
       </Text>
       {remoteSyncState !== 'idle' && (
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <Tag color={remoteSyncState === 'failed' ? 'default' : 'processing'} style={{ margin: 0 }}>
+          <Tag
+            color={remoteSyncState === 'failed' ? 'default' : 'processing'}
+            style={{ margin: 0 }}
+          >
             {remoteSyncState === 'syncing'
               ? t('setup.provider.syncingPresets')
               : remoteSyncState === 'synced'

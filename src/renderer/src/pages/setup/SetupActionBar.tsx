@@ -33,9 +33,7 @@ function SetupActionBar({
     >
       <div style={{ width: '100%', maxWidth: 1120 }}>
         <Flex justify="space-between" align="center" gap={16}>
-          <div>
-            {showBack ? <Button onClick={onBack}>{t('common.prev')}</Button> : <div />}
-          </div>
+          <div>{showBack ? <Button onClick={onBack}>{t('common.prev')}</Button> : <div />}</div>
           <Button type="primary" onClick={onPrimary} disabled={primaryDisabled}>
             {primaryLabel}
           </Button>

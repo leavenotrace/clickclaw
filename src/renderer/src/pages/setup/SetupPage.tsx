@@ -52,7 +52,8 @@ function SetupPage(): React.ReactElement {
   const prev = useCallback(() => setCurrent((c) => Math.max(c - 1, 0)), [])
   const goToDashboard = useCallback(() => navigate('/dashboard'), [navigate])
 
-  const providerCanContinue = !!data.apiKey && !!data.modelId && !!data.providerKey && !!data.platformKey
+  const providerCanContinue =
+    !!data.apiKey && !!data.modelId && !!data.providerKey && !!data.platformKey
   const confirmCanContinue = true
 
   const renderStepContent = () => {

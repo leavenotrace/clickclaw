@@ -231,7 +231,6 @@ function StepConfirm({ data }: Props): React.ReactElement {
           </Tag>
         </ConfigRow>
       </Card>
-
     </div>
   )
 }
