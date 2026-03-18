@@ -101,6 +101,31 @@ function safeUnlink(p) {
   try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch {}
 }
 
+function escapePowerShellSingleQuoted(value) {
+  return value.replace(/'/g, "''");
+}
+
+function assertZipHasCentralDirectory(zipPath) {
+  const stat = fs.statSync(zipPath);
+  if (stat.size < 22) {
+    throw new Error(`zip 文件过小: ${zipPath}`);
+  }
+
+  const readSize = Math.min(stat.size, 128 * 1024);
+  const buf = Buffer.alloc(readSize);
+  const fd = fs.openSync(zipPath, "r");
+  try {
+    fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+  } finally {
+    fs.closeSync(fd);
+  }
+
+  const eocdSig = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+  if (buf.lastIndexOf(eocdSig) === -1) {
+    throw new Error(`zip 缺少 End-of-central-directory 签名: ${zipPath}`);
+  }
+}
+
 // Node 16.7+ 内置 fs.cpSync，C++ 实现比手写递归快
 // dereference: true 自动解符号链接（避免 asar/签名问题）
 function copyDir(src, dest) {
@@ -271,11 +296,26 @@ async function downloadAndExtractNode(version, platform, arch, runtimeDir) {
     log(`使用缓存: ${filename}`);
   }
 
-  rmDir(runtimeDir);
-  ensureDir(runtimeDir);
-  platform === "darwin"
-    ? extractDarwin(cachedFile, runtimeDir, version, arch)
-    : extractWin32(cachedFile, runtimeDir, version, arch);
+  try {
+    rmDir(runtimeDir);
+    ensureDir(runtimeDir);
+    platform === "darwin"
+      ? extractDarwin(cachedFile, runtimeDir, version, arch)
+      : extractWin32(cachedFile, runtimeDir, version, arch);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`检测到运行时缓存可能损坏，准备重下: ${filename}`);
+    log(`解压失败原因: ${message}`);
+    rmDir(runtimeDir);
+    safeUnlink(cachedFile);
+    log(`重新下载 ${filename}...`);
+    await downloadWithFallback(urls, cachedFile);
+    rmDir(runtimeDir);
+    ensureDir(runtimeDir);
+    platform === "darwin"
+      ? extractDarwin(cachedFile, runtimeDir, version, arch)
+      : extractWin32(cachedFile, runtimeDir, version, arch);
+  }
   fs.writeFileSync(stampFile, stamp);
 }
 
@@ -305,10 +345,17 @@ function extractDarwin(tarPath, runtimeDir, version, arch) {
 function extractWin32(zipPath, runtimeDir, version, arch) {
   log("解压 Windows Node.js 运行时...");
   const tmpDir = makeTmpDir(path.dirname(zipPath), `node-win32-${arch}`);
+  assertZipHasCentralDirectory(zipPath);
 
-  // WSL / macOS 交叉打包用 unzip，Windows 宿主用内置 tar（不依赖 Expand-Archive）
+  // Windows 宿主优先走 PowerShell Expand-Archive，避免 tar 在盘符路径上误解析。
+  // 交叉打包场景仍走 unzip，保持非 Windows 宿主兼容。
   if (process.platform === "win32") {
-    execSync(`tar -xf "${zipPath}" -C "${tmpDir}"`, { stdio: "inherit" });
+    const zipArg = escapePowerShellSingleQuoted(zipPath);
+    const destArg = escapePowerShellSingleQuoted(tmpDir);
+    execSync(
+      `powershell -NoProfile -Command "Expand-Archive -Force -Path '${zipArg}' -DestinationPath '${destArg}'"`,
+      { stdio: "inherit" }
+    );
   } else {
     execSync(`unzip -o -q "${zipPath}" -d "${tmpDir}"`, { stdio: "inherit" });
   }
