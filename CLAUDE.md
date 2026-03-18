@@ -9,7 +9,7 @@
 - **产品名称：** ClickClaw（Click + Claw — "点击即装 OpenClaw"）
 - **包名 / App ID：** `cn.clickclaw.app`
 - **域名：** clickclaw.cn / clickclaw.cloud 
-- **版本策略：** 日历版本 `YYYY.M.D`（与 OpenClaw 保持一致）
+- **版本策略：** 日历版本 `YYYY.M.D`；如同一自然日需补发修复版，允许追加修订号 `YYYY.M.D.N`
 - **目标平台：** macOS（arm64 + x64）、Windows（x64 + arm64）
 
 ## 产品定位
