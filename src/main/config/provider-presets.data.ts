@@ -549,13 +549,13 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
     group: 'china',
     color: '#ff6900',
     initials: 'XM',
-    tagline: '小米推出的 MiMo 模型 API 平台，兼容 Anthropic 协议。',
+    tagline: '小米推出的 MiMo 模型 API 平台',
     platforms: [
       {
         key: 'xiaomi',
         name: 'Xiaomi MiMo API',
-        baseUrl: 'https://api.xiaomimimo.com/anthropic',
-        api: 'anthropic-messages',
+        baseUrl: 'https://api.xiaomimimo.com/v1',
+        api: 'openai-completions',
         apiKeyUrl: 'https://platform.xiaomimimo.com/#/console/api-keys',
         envKey: 'XIAOMI_API_KEY',
         models: [
