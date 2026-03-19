@@ -276,8 +276,7 @@ export function ChannelConfigDrawer({
   }
 
   const hasDmAllowlist = watchedDmPolicy === 'allowlist'
-  const hasGroupAllowlist =
-    watchedGroupPolicy === 'allowlist' && supportsGroupAllowFrom(preset)
+  const hasGroupAllowlist = watchedGroupPolicy === 'allowlist' && supportsGroupAllowFrom(preset)
   const scanHintStyle = {
     marginBottom: 8,
     fontSize: 12,

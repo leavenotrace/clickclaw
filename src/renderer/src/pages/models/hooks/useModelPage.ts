@@ -9,15 +9,8 @@ import { useRemoteModels } from './useRemoteModels'
 export function useModelPage() {
   const { brands, brandSections } = useProviderPresets()
 
-  const {
-    providers,
-    defaultModel,
-    setDefaultModel,
-    loading,
-    loadError,
-    loadData,
-    touch,
-  } = useProviderQuery()
+  const { providers, defaultModel, setDefaultModel, loading, loadError, loadData, touch } =
+    useProviderQuery()
 
   const {
     savingProvider,
