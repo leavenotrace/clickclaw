@@ -138,7 +138,6 @@ function StepProvider({ data, updateData }: Props): React.ReactElement {
   )
   // 用 ref 追踪 channels 最新值，避免 useEffect 循环依赖
   const channelsRef = useRef(data.channels)
-  channelsRef.current = data.channels
 
   const [customProviderId, setCustomProviderId] = useState(
     data.platformKey === '__custom__' ? data.providerKey : ''
@@ -206,6 +205,10 @@ function StepProvider({ data, updateData }: Props): React.ReactElement {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    channelsRef.current = data.channels
+  }, [data.channels])
 
   const allPresets = useMemo(() => sections.flatMap((section) => section.items), [sections])
   const selectedPreset = allPresets.find((preset) => preset.key === data.providerKey)

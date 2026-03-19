@@ -292,17 +292,16 @@ async function verifyWecom(fields: Record<string, string>): Promise<ChannelVerif
   }
 }
 
-/** QQ Bot：POST https://bots.qq.com/oauth2/token（client_credentials） */
+/** QQ Bot：POST https://bots.qq.com/app/getAppAccessToken（client_credentials） */
 async function verifyQQBot(fields: Record<string, string>): Promise<ChannelVerifyResult> {
   const { appId, clientSecret } = fields
   if (!appId?.trim() || !clientSecret?.trim()) {
     return { success: false, message: 'App ID 和 Client Secret 不能为空' }
   }
-  const res = await proxyFetch('https://bots.qq.com/oauth2/token', {
+  const res = await proxyFetch('https://bots.qq.com/app/getAppAccessToken', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: 'client_credentials',
       appId: appId.trim(),
       clientSecret: clientSecret.trim(),
     }).toString(),
