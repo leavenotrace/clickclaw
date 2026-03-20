@@ -135,6 +135,13 @@ npm run lint             # ESLint + TypeScript 类型检查
 npm run typecheck        # 仅 TypeScript 类型检查
 npm test                 # Vitest 单次运行
 ```
+
+### 提交前检查（必须）
+
+- 每次提交 commit 前，必须先执行并通过：
+  - `npm run format:check`
+  - `npm run lint`
+- 任一命令失败时，不允许提交；需先修复后再提交。
 ---
 
 ## 代码规范
