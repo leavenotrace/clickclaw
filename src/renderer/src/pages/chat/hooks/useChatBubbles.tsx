@@ -26,7 +26,10 @@ export function useChatBubbles({
         role: chatMsg.role === 'assistant' ? 'ai' : 'user',
         content:
           chatMsg.role === 'assistant' ? (
-            <XMarkdown content={chatMsg.content || (chatMsg.streaming ? '...' : '')} />
+            <XMarkdown
+              content={chatMsg.content || (chatMsg.streaming ? '...' : '')}
+              openLinksInNewTab
+            />
           ) : (
             <div>
               {chatMsg.attachments && chatMsg.attachments.length > 0 && (
