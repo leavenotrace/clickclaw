@@ -81,6 +81,18 @@ export const CHANNEL_PRESETS_DATA: Record<string, ChannelPreset> = {
     supportsGroup: false,
     groupPolicies: [],
   },
+  'openclaw-weixin': {
+    name: '微信',
+    group: 'domestic',
+    color: '#07C160',
+    initials: 'WX',
+    tagline: '扫码连接个人微信',
+    docsUrl: 'https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin',
+    fields: [],
+    dmPolicies: ['pairing', 'allowlist', 'open', 'disabled'],
+    supportsGroup: false,
+    groupPolicies: [],
+  },
   qqbot: {
     name: 'QQ Bot',
     group: 'domestic',

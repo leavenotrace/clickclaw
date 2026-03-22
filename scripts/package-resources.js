@@ -15,6 +15,7 @@
  *   CLICKCLAW_QQBOT_SOURCE=1.2.3
  *   CLICKCLAW_WECOM_SOURCE=./path/to/plugin.tgz
  *   CLICKCLAW_DINGTALK_SOURCE=latest
+ *   CLICKCLAW_WEIXIN_SOURCE=1.0.2
  *   OPENCLAW_PACKAGE_SOURCE=2026.3.9
  *   CLAWHUB_PACKAGE_SOURCE=0.8.0
  *
@@ -69,6 +70,12 @@ const BUNDLED_PLUGINS = [
     id: "dingtalk-connector",
     label: "钉钉",
     envVar: "CLICKCLAW_DINGTALK_SOURCE",
+  },
+  {
+    packageName: "@tencent-weixin/openclaw-weixin",
+    id: "openclaw-weixin",
+    label: "微信",
+    envVar: "CLICKCLAW_WEIXIN_SOURCE",
   },
 ];
 

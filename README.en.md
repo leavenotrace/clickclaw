@@ -21,6 +21,14 @@
   <a href="README.md">简体中文</a> | English
 </p>
 
+<p align="center">
+  Website: <a href="https://www.clickclaw.cn">clickclaw.cn</a> ·
+  Mirrors: <a href="https://www.clickclaw.cloud">clickclaw.cloud</a> /
+  <a href="https://www.clickclaw.icu">clickclaw.icu</a><br/>
+  Source Code: <a href="https://github.com/OpenClaw/clickclaw">GitHub</a> ·
+  <a href="https://atomgit.com/clickclaw/clickclaw">AtomGit</a>
+</p>
+
 ---
 
 ## What is ClickClaw

@@ -37,6 +37,9 @@ export function ChannelCard({
   const accountIds = Object.keys(accounts)
   const hasAccounts = accountIds.length > 0
   const credsFilled = hasAccounts
+  const isWeixin = channelKey === 'openclaw-weixin'
+  const weixinConnected = isWeixin && hasAccounts
+  const weixinDefaultAccount = isWeixin ? defaultAccountId || accountIds[0] || null : null
 
   return (
     <div
@@ -93,7 +96,17 @@ export function ChannelCard({
             )}
             {!credsFilled && (
               <Tag color="warning" style={{ fontSize: 10, padding: '0 5px', lineHeight: '16px' }}>
-                未配置凭证
+                {t('channels.card.credentialsMissing')}
+              </Tag>
+            )}
+            {isWeixin && (
+              <Tag
+                color={weixinConnected ? 'success' : 'default'}
+                style={{ fontSize: 10, padding: '0 5px', lineHeight: '16px', marginInlineEnd: 0 }}
+              >
+                {weixinConnected
+                  ? t('channels.card.weixinConnected')
+                  : t('channels.card.weixinNotConnected')}
               </Tag>
             )}
           </div>
@@ -104,6 +117,12 @@ export function ChannelCard({
             {preset.supportsGroup && config.groupPolicy && (
               <span style={{ marginLeft: 8 }}>
                 · {t(`channels.groupPolicy_${config.groupPolicy}` as Parameters<typeof t>[0])}
+              </span>
+            )}
+            {weixinDefaultAccount && (
+              <span style={{ marginLeft: config.dmPolicy || config.groupPolicy ? 8 : 0 }}>
+                {config.dmPolicy || config.groupPolicy ? '· ' : ''}
+                {t('channels.card.weixinAccount', { id: weixinDefaultAccount })}
               </span>
             )}
           </div>
@@ -185,7 +204,11 @@ export function ChannelCard({
             onClick={onAddAccount}
             style={{ fontSize: 12, padding: 0, height: 'auto', color: '#FF4D2A' }}
           >
-            {t('channels.accounts.add')}
+            {isWeixin
+              ? weixinConnected
+                ? t('channels.card.weixinReconnectEntry')
+                : t('channels.card.weixinConnectEntry')
+              : t('channels.accounts.add')}
           </Button>
         </div>
 
@@ -201,7 +224,9 @@ export function ChannelCard({
               textAlign: 'center',
             }}
           >
-            {t('channels.accounts.noAccountsHint')}
+            {isWeixin
+              ? t('channels.card.weixinNoAccountHint')
+              : t('channels.accounts.noAccountsHint')}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -15,18 +15,21 @@ import { join } from 'path'
 import { spawn } from 'child_process'
 import {
   CLICKCLAW_GATEWAY_DIR,
+  CONFIG_PATH,
   resolveBundledNodeBin,
   resolveBundledNpmBin,
   resolveResourcesPath,
 } from '../constants'
 import { installCli } from './cli-integration'
 import { createLogger } from '../logger'
+import { readConfig, writeConfig } from '../config'
 
 const log = createLogger('openclaw-updater')
 
 // npm registry 地址（优先 npmmirror，对应站点 https://npmmirror.com/）
 // 注意：npm install 需要的是 registry API 端点，不是镜像站首页。
 const REGISTRY_MIRRORS = ['https://registry.npmmirror.com', 'https://registry.npmjs.org']
+const WEIXIN_PLUGIN_ID = 'openclaw-weixin'
 
 // ─── 类型定义 ───
 
@@ -73,7 +76,7 @@ function readPackageVersion(pkgJsonPath: string): string | null {
  * - 设置页升级 openclaw 时，会把新版安装到 ~/.clickclaw/gateway/node_modules/openclaw/
  * - 运行时优先使用用户目录，因此若不复制 extensions，升级后这些插件会“消失”
  */
-function syncBundledExtensionsToUserGateway(onLog: (line: string) => void): void {
+export function syncBundledExtensionsToUserGateway(onLog: (line: string) => void): string[] {
   const bundledExtensionsDir = join(
     resolveResourcesPath(),
     'gateway',
@@ -88,7 +91,7 @@ function syncBundledExtensionsToUserGateway(onLog: (line: string) => void): void
     const msg = `未找到内置插件目录，跳过同步: ${bundledExtensionsDir}`
     log.warn(msg)
     onLog(`[ClickClaw] 警告：${msg}`)
-    return
+    return []
   }
 
   mkdirSync(userExtensionsDir, { recursive: true })
@@ -115,6 +118,84 @@ function syncBundledExtensionsToUserGateway(onLog: (line: string) => void): void
     const msg = '内置插件目录存在，但未发现有效插件清单'
     log.warn(msg)
     onLog(`[ClickClaw] 警告：${msg}`)
+  }
+
+  return copiedPluginIds
+}
+
+function resolveBundledExtensionsDir(): string {
+  return join(resolveResourcesPath(), 'gateway', 'node_modules', 'openclaw', 'extensions')
+}
+
+function resolveUserExtensionsDir(): string {
+  return join(CLICKCLAW_GATEWAY_DIR, 'node_modules', 'openclaw', 'extensions')
+}
+
+function isPluginInstalled(dir: string, pluginId: string): boolean {
+  return existsSync(join(dir, pluginId, 'openclaw.plugin.json'))
+}
+
+export function ensureBundledWeixinPluginEnabled(): {
+  enabled: boolean
+  changed: boolean
+  skipped: boolean
+} {
+  if (!existsSync(CONFIG_PATH)) {
+    return { enabled: false, changed: false, skipped: true }
+  }
+
+  const cfg = readConfig()
+  if (!cfg.plugins) cfg.plugins = {}
+  if (!cfg.plugins.entries) cfg.plugins.entries = {}
+
+  const current = cfg.plugins.entries[WEIXIN_PLUGIN_ID] as { enabled?: boolean } | undefined
+  if (current?.enabled === false) {
+    return { enabled: false, changed: false, skipped: true }
+  }
+
+  if (current?.enabled === true) {
+    return { enabled: true, changed: false, skipped: false }
+  }
+
+  cfg.plugins.entries[WEIXIN_PLUGIN_ID] = { ...(current ?? {}), enabled: true }
+  writeConfig(cfg, { source: 'auto', summary: '启用内置微信插件' })
+  log.info(`已默认启用内置插件: ${WEIXIN_PLUGIN_ID}`)
+  return { enabled: true, changed: true, skipped: false }
+}
+
+export function ensureBundledWeixinReady(onLog: (line: string) => void = () => {}): {
+  bundled: boolean
+  installedToUserDir: boolean
+  enabled: boolean
+  configMissing: boolean
+} {
+  syncBundledExtensionsToUserGateway(onLog)
+  const enableResult = ensureBundledWeixinPluginEnabled()
+  return {
+    bundled: isPluginInstalled(resolveBundledExtensionsDir(), WEIXIN_PLUGIN_ID),
+    installedToUserDir: isPluginInstalled(resolveUserExtensionsDir(), WEIXIN_PLUGIN_ID),
+    enabled: enableResult.enabled,
+    configMissing: enableResult.skipped && !existsSync(CONFIG_PATH),
+  }
+}
+
+export function getBundledWeixinStatus(): {
+  bundled: boolean
+  installedToUserDir: boolean
+  enabled: boolean
+  configMissing: boolean
+} {
+  const cfgExists = existsSync(CONFIG_PATH)
+  const cfg = cfgExists ? readConfig() : {}
+  const enabled =
+    ((cfg.plugins?.entries?.[WEIXIN_PLUGIN_ID] as { enabled?: boolean } | undefined)?.enabled ??
+      false) === true
+
+  return {
+    bundled: isPluginInstalled(resolveBundledExtensionsDir(), WEIXIN_PLUGIN_ID),
+    installedToUserDir: isPluginInstalled(resolveUserExtensionsDir(), WEIXIN_PLUGIN_ID),
+    enabled,
+    configMissing: !cfgExists,
   }
 }
 

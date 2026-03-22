@@ -45,10 +45,11 @@ export function getProviderLogo(key: string): string | undefined {
  * @returns    打包后的资源 URL，未找到时返回 undefined（组件自动降级到 Monogram）
  */
 export function getChannelLogo(key: string): string | undefined {
+  const normalizedKey = key === 'openclaw-weixin' ? 'wechat' : key
   return (
-    channelLogos[`./channels/${key}.svg`] ??
-    channelLogos[`./channels/${key}.png`] ??
-    channelLogos[`./channels/${key}.webp`]
+    channelLogos[`./channels/${normalizedKey}.svg`] ??
+    channelLogos[`./channels/${normalizedKey}.png`] ??
+    channelLogos[`./channels/${normalizedKey}.webp`]
   )
 }
 

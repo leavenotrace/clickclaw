@@ -620,6 +620,32 @@ declare global {
         domain: 'feishu' | 'lark'
         openId?: string
       }>
+      weixinScanStart: (params?: {
+        accountId?: string
+        force?: boolean
+        timeoutMs?: number
+      }) => Promise<{
+        qrDataUrl?: string
+        message: string
+        sessionKey: string
+      }>
+      weixinScanWait: (params: {
+        sessionKey?: string
+        accountId?: string
+        timeoutMs?: number
+      }) => Promise<{
+        connected: boolean
+        message: string
+        accountId?: string
+      }>
+      weixinScanCancel: (sessionKey?: string) => Promise<void>
+      weixinLogout: (accountId: string) => Promise<void>
+      getWeixinStatus: () => Promise<{
+        bundled: boolean
+        installedToUserDir: boolean
+        enabled: boolean
+        configMissing: boolean
+      }>
     }
 
     /** 路由绑定管理 */

@@ -10,10 +10,12 @@ import { createTray, destroyTray } from './tray'
 import { loadAppState, saveAppState } from './config/app-cache'
 import { initUpdater } from './services/updater'
 import { fetchPresetsInBackground } from './services/remote-presets'
+import { ensureBundledWeixinReady } from './services/openclaw-updater'
 import { getSettings } from './settings'
 import { applyElectronProxy } from './utils/proxy'
 import { installCli } from './services/cli-integration'
 import { OPENCLAW_HOME } from './constants'
+import { cancelAllWeixinQrScans } from './services/weixin-qr'
 
 // ─── 注册自定义协议（必须在 app.whenReady() 之前调用） ───
 //
@@ -37,6 +39,31 @@ const log = createLogger('main')
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
+
+function focusExistingMainWindow(): void {
+  const win =
+    BrowserWindow.getAllWindows().find(
+      (window) => !window.isDestroyed() && !window.isAlwaysOnTop()
+    ) ?? null
+
+  if (!win) {
+    mainWindow = null
+    return
+  }
+
+  mainWindow = win
+
+  try {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  } catch (err) {
+    log.warn('focusExistingMainWindow failed:', err)
+    if (win.isDestroyed()) {
+      mainWindow = null
+    }
+  }
+}
 
 function createWindow(): void {
   // 恢复上次保存的窗口位置和尺寸
@@ -83,9 +110,14 @@ function createWindow(): void {
 
   // 保存窗口位置和尺寸（节流：resize/moved 均触发）
   const saveBounds = (): void => {
-    if (!mainWindow || mainWindow.isMinimized() || mainWindow.isMaximized()) return
-    const b = mainWindow.getBounds()
-    saveAppState({ windowBounds: { x: b.x, y: b.y, width: b.width, height: b.height } })
+    if (!mainWindow) return
+    try {
+      if (mainWindow.isDestroyed() || mainWindow.isMinimized() || mainWindow.isMaximized()) return
+      const b = mainWindow.getBounds()
+      saveAppState({ windowBounds: { x: b.x, y: b.y, width: b.width, height: b.height } })
+    } catch (err) {
+      log.warn('saveBounds skipped due to window state error:', err)
+    }
   }
   mainWindow.on('resize', saveBounds)
   mainWindow.on('moved', saveBounds)
@@ -110,11 +142,7 @@ if (!gotTheLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.show()
-      mainWindow.focus()
-    }
+    focusExistingMainWindow()
   })
 
   app.whenReady().then(() => {
@@ -166,6 +194,13 @@ if (!gotTheLock) {
 
     // 注册所有 IPC handlers
     registerIpcHandlers()
+
+    try {
+      const weixinStatus = ensureBundledWeixinReady((line) => log.info(line))
+      log.info('bundled weixin status:', weixinStatus)
+    } catch (err) {
+      log.warn('bundled weixin prepare failed:', err)
+    }
 
     // 启动时应用已保存的代理设置到 Electron session
     applyElectronProxy(getSettings()).catch((err) => {
@@ -232,6 +267,7 @@ if (!gotTheLock) {
     isQuitting = true
 
     destroyTray()
+    cancelAllWeixinQrScans()
 
     const gw = getGatewayProcess()
     gw.stopStatusPolling()

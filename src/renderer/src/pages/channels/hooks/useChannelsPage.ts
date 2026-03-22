@@ -106,11 +106,15 @@ export function useChannelsPage() {
   )
 
   const handleSave = useCallback(
-    async (preset: ChannelPresetForUI, config: ChannelConfig): Promise<void> => {
+    async (
+      preset: ChannelPresetForUI,
+      config: ChannelConfig,
+      options?: { successMessage?: string }
+    ): Promise<void> => {
       setSaving(true)
       try {
         await window.api.channel.save(preset.key, config)
-        message.success(t('channels.saveSuccess'))
+        message.success(options?.successMessage ?? t('channels.saveSuccess'))
         setConfigOpen(false)
         await load()
       } catch (err) {
@@ -179,7 +183,12 @@ export function useChannelsPage() {
   )
 
   const handleSaveAccount = useCallback(
-    async (channelKey: string, accountId: string, data: Record<string, unknown>): Promise<void> => {
+    async (
+      channelKey: string,
+      accountId: string,
+      data: Record<string, unknown>,
+      options?: { successMessage?: string }
+    ): Promise<void> => {
       setAccountSaving(true)
       try {
         const config = channels[channelKey]
@@ -240,7 +249,7 @@ export function useChannelsPage() {
           }
         }
 
-        message.success(t('channels.accounts.saveSuccess'))
+        message.success(options?.successMessage ?? t('channels.accounts.saveSuccess'))
         setAccountDrawerOpen(false)
         await load()
       } catch (err) {
