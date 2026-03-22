@@ -21,6 +21,14 @@
   简体中文 | <a href="README.en.md">English</a>
 </p>
 
+<p align="center">
+  官网：<a href="https://www.clickclaw.cn">clickclaw.cn</a> ·
+  镜像：<a href="https://www.clickclaw.cloud">clickclaw.cloud</a> /
+  <a href="https://www.clickclaw.icu">clickclaw.icu</a><br/>
+  代码仓库：<a href="https://github.com/OpenClaw/clickclaw">GitHub</a> ·
+  <a href="https://atomgit.com/clickclaw/clickclaw">AtomGit</a>
+</p>
+
 ---
 
 ## ClickClaw 是什么
