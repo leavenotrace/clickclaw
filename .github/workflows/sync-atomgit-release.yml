@@ -72,8 +72,8 @@ jobs:
         if: steps.release_check.outputs.exists == 'true'
         env:
           ATOMGIT_GIT_HOST: ${{ vars.ATOMGIT_GIT_HOST || 'atomgit.com' }}
-          ATOMGIT_GIT_OWNER: ${{ vars.ATOMGIT_REPO_OWNER }}
-          ATOMGIT_GIT_REPO: ${{ vars.ATOMGIT_REPO_NAME }}
+          ATOMGIT_GIT_OWNER: ${{ vars.ATOMGIT_REPO_OWNER || 'clickclaw' }}
+          ATOMGIT_GIT_REPO: ${{ vars.ATOMGIT_REPO_NAME || 'clickclaw' }}
           ATOMGIT_GIT_USERNAME: ${{ secrets.ATOMGIT_GIT_USERNAME }}
           ATOMGIT_TOKEN: ${{ secrets.ATOMGIT_TOKEN }}
         shell: bash
