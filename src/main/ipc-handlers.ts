@@ -59,6 +59,7 @@ import { getLaunchAtLoginEnabled, setLaunchAtLoginEnabled } from './services/lau
 import { checkForUpdates, downloadUpdate, quitAndInstall, getUpdateInfo } from './services/updater'
 import {
   checkOpenclawUpdate,
+  getBundledWeixinStatus,
   installOpenclawUpdate,
   getCurrentOpenclawVersion,
 } from './services/openclaw-updater'
@@ -100,6 +101,12 @@ import {
 import type { PairingState } from './services/pairing-monitor'
 import { startWecomQrScan, waitWecomQrScan } from './services/wecom-qr'
 import { startFeishuQrScan, waitFeishuQrScan } from './services/feishu-qr'
+import {
+  startWeixinQrScan,
+  waitWeixinQrScan,
+  logoutWeixinAccount,
+  cancelWeixinQrScan,
+} from './services/weixin-qr'
 import { resolveInitialRoute } from './app-routing'
 
 const execFileAsync = promisify(execFile)
@@ -312,6 +319,14 @@ export function registerIpcHandlers(): void {
       configUpdate.agents = {
         defaults: {
           model: `${providerName}/${d.modelId}`,
+        },
+      }
+
+      configUpdate.plugins = {
+        entries: {
+          'openclaw-weixin': {
+            enabled: true,
+          },
         },
       }
 
@@ -573,6 +588,10 @@ export function registerIpcHandlers(): void {
     return { currentVersion: getCurrentOpenclawVersion() }
   })
 
+  ipcMain.handle('channel:weixin-status', () => {
+    return getBundledWeixinStatus()
+  })
+
   // ========== Agent ==========
 
   ipcMain.handle('agent:list', () => {
@@ -724,6 +743,28 @@ export function registerIpcHandlers(): void {
       return await waitFeishuQrScan(deviceCode, options)
     }
   )
+
+  ipcMain.handle(
+    'channel:weixin-scan-start',
+    async (_event, params?: { accountId?: string; force?: boolean; timeoutMs?: number }) => {
+      return await startWeixinQrScan(params)
+    }
+  )
+
+  ipcMain.handle(
+    'channel:weixin-scan-wait',
+    async (_event, params: { sessionKey?: string; accountId?: string; timeoutMs?: number }) => {
+      return await waitWeixinQrScan(params)
+    }
+  )
+
+  ipcMain.handle('channel:weixin-scan-cancel', (_event, sessionKey?: string) => {
+    cancelWeixinQrScan(sessionKey)
+  })
+
+  ipcMain.handle('channel:weixin-logout', (_event, accountId: string) => {
+    logoutWeixinAccount(accountId)
+  })
 
   ipcMain.handle(
     'channel:save-account',

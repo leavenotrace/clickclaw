@@ -73,6 +73,13 @@ export interface OpenclawConfig {
   /** 工具配置 */
   tools?: Record<string, unknown>
 
+  /** 插件配置 */
+  plugins?: {
+    entries?: Record<string, { enabled?: boolean; [key: string]: unknown }>
+    installs?: Record<string, Record<string, unknown>>
+    [key: string]: unknown
+  }
+
   /** 透传字段 */
   [key: string]: unknown
 }

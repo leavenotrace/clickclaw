@@ -167,6 +167,34 @@ const api = {
       domain: 'feishu' | 'lark'
       openId?: string
     }> => ipcRenderer.invoke('channel:feishu-scan-wait', deviceCode, options),
+    weixinScanStart: (params?: {
+      accountId?: string
+      force?: boolean
+      timeoutMs?: number
+    }): Promise<{
+      qrDataUrl?: string
+      message: string
+      sessionKey: string
+    }> => ipcRenderer.invoke('channel:weixin-scan-start', params),
+    weixinScanWait: (params: {
+      sessionKey?: string
+      accountId?: string
+      timeoutMs?: number
+    }): Promise<{
+      connected: boolean
+      message: string
+      accountId?: string
+    }> => ipcRenderer.invoke('channel:weixin-scan-wait', params),
+    weixinScanCancel: (sessionKey?: string): Promise<void> =>
+      ipcRenderer.invoke('channel:weixin-scan-cancel', sessionKey),
+    weixinLogout: (accountId: string): Promise<void> =>
+      ipcRenderer.invoke('channel:weixin-logout', accountId),
+    getWeixinStatus: (): Promise<{
+      bundled: boolean
+      installedToUserDir: boolean
+      enabled: boolean
+      configMissing: boolean
+    }> => ipcRenderer.invoke('channel:weixin-status'),
   },
 
   binding: {

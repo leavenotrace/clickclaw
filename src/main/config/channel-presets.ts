@@ -245,6 +245,8 @@ export async function verifyChannel(
         return await verifySlack(fields)
       case 'whatsapp':
         return await verifyWhatsApp(fields)
+      case 'openclaw-weixin':
+        return await verifyWeixin(fields)
       case 'bluebubbles':
         return await verifyBlueBubbles(fields)
       default:
@@ -439,6 +441,13 @@ async function verifyWhatsApp(_fields: Record<string, string>): Promise<ChannelV
   return {
     success: true,
     message: 'WhatsApp 无需预填凭证。保存后按 OpenClaw 流程完成二维码登录即可。',
+  }
+}
+
+async function verifyWeixin(_fields: Record<string, string>): Promise<ChannelVerifyResult> {
+  return {
+    success: true,
+    message: '微信为内置扫码渠道，无需预填凭证。保存后直接扫码连接即可。',
   }
 }
 
