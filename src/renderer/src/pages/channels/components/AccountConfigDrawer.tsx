@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { App, Button, Divider, Drawer, Form, Input, QRCode, Select } from 'antd'
+import { App, Button, Collapse, Divider, Drawer, Form, Input, QRCode, Select } from 'antd'
 import { CheckCircleFilled, LinkOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { TITLE_BAR_HEIGHT } from '../../../components/TitleBar'
@@ -18,7 +18,7 @@ export function AccountConfigDrawer({
   saving,
 }: AccountConfigDrawerProps): React.ReactElement {
   const { t } = useTranslation()
-  const { message, modal } = App.useApp()
+  const { message, modal, notification } = App.useApp()
   const { callRpc, status: wsStatus, gwState } = useGatewayContext()
   const [form] = Form.useForm<AccountFormValues>()
   const [verifying, setVerifying] = useState(false)
@@ -32,6 +32,17 @@ export function AccountConfigDrawer({
   const [feishuQuickBusy, setFeishuQuickBusy] = useState(false)
   const [feishuAuthUrl, setFeishuAuthUrl] = useState<string | null>(null)
   const [feishuScanSuccess, setFeishuScanSuccess] = useState(false)
+  const [weixinBusy, setWeixinBusy] = useState(false)
+  const [weixinMessage, setWeixinMessage] = useState<string | null>(null)
+  const [weixinQrDataUrl, setWeixinQrDataUrl] = useState<string | null>(null)
+  const [weixinStatus, setWeixinStatus] = useState<{
+    bundled: boolean
+    installedToUserDir: boolean
+    enabled: boolean
+    configMissing: boolean
+  } | null>(null)
+  const [showAdvancedSetup, setShowAdvancedSetup] = useState(false)
+  const weixinSessionKeyRef = useRef<string | null>(null)
   const scanRequestVersionRef = useRef(0)
   const openRef = useRef(open)
 
@@ -40,6 +51,10 @@ export function AccountConfigDrawer({
   useEffect(() => {
     openRef.current = open
     if (!open) {
+      if (weixinSessionKeyRef.current) {
+        void window.api.channel.weixinScanCancel(weixinSessionKeyRef.current).catch(() => undefined)
+        weixinSessionKeyRef.current = null
+      }
       scanRequestVersionRef.current += 1
       setVerifying(false)
       setWhatsappBusy(false)
@@ -47,10 +62,15 @@ export function AccountConfigDrawer({
       setFeishuQuickBusy(false)
       setWhatsappMessage(null)
       setWhatsappQrDataUrl(null)
+      setWeixinBusy(false)
+      setWeixinMessage(null)
+      setWeixinQrDataUrl(null)
+      setWeixinStatus(null)
       setWecomAuthUrl(null)
       setWecomScanSuccess(false)
       setFeishuAuthUrl(null)
       setFeishuScanSuccess(false)
+      setShowAdvancedSetup(false)
     }
   }, [open])
 
@@ -77,14 +97,27 @@ export function AccountConfigDrawer({
       setVerifyStatus('idle')
       setWhatsappMessage(null)
       setWhatsappQrDataUrl(null)
+      setWeixinMessage(null)
+      setWeixinQrDataUrl(null)
       setWecomAuthUrl(null)
       setWecomScanSuccess(false)
       setFeishuAuthUrl(null)
       setFeishuScanSuccess(false)
+      setShowAdvancedSetup(false)
     }
   }, [open, preset, editingAccountId, editingAccountData, form, isEdit])
 
+  useEffect(() => {
+    if (!open || preset?.key !== 'openclaw-weixin') return
+    window.api.channel
+      .getWeixinStatus()
+      .then(setWeixinStatus)
+      .catch(() => setWeixinStatus(null))
+  }, [open, preset?.key])
+
   if (!preset || !channelKey) return <></>
+  const isQuickAuthChannel = preset.key === 'wecom' || preset.key === 'feishu'
+  const shouldShowFooterActions = !isQuickAuthChannel || showAdvancedSetup
   const nextScanVersion = (): number => {
     scanRequestVersionRef.current += 1
     return scanRequestVersionRef.current
@@ -117,6 +150,7 @@ export function AccountConfigDrawer({
   }
 
   const handleSubmit = async (): Promise<void> => {
+    if (preset.key === 'openclaw-weixin' && !isEdit) return
     try {
       const values = await form.validateFields()
       const accountId = values.accountId.trim()
@@ -140,6 +174,40 @@ export function AccountConfigDrawer({
     if (isEdit && editingAccountId) return editingAccountId
     const value = form.getFieldValue('accountId')
     return typeof value === 'string' ? value.trim() : ''
+  }
+
+  const showWeixinRestartNotice = (): void => {
+    const key = 'weixin-restart-notice'
+    notification.success({
+      key,
+      message: t('channels.configDrawer.weixinRestartTitle'),
+      description: t('channels.configDrawer.weixinRestartContent'),
+      duration: 0,
+      placement: 'topRight',
+      btn: (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="small" onClick={() => notification.destroy(key)}>
+            {t('channels.configDrawer.weixinRestartLater')}
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            style={{ background: '#FF4D2A', borderColor: '#FF4D2A' }}
+            onClick={async () => {
+              notification.destroy(key)
+              try {
+                await window.api.gateway.restart()
+                message.success(t('channels.configDrawer.weixinRestartSuccess'))
+              } catch {
+                message.error(t('common.restartFailed'))
+              }
+            }}
+          >
+            {t('channels.configDrawer.weixinRestartNow')}
+          </Button>
+        </div>
+      ),
+    })
   }
 
   const handleWhatsAppStart = async (force: boolean): Promise<void> => {
@@ -201,6 +269,66 @@ export function AccountConfigDrawer({
     }
   }
 
+  const handleWeixinStart = async (force: boolean): Promise<void> => {
+    const scanVersion = nextScanVersion()
+    setWeixinBusy(true)
+    try {
+      requireGatewayReady()
+      const accountId = getTargetAccountId()
+      const startResult = await window.api.channel.weixinScanStart({
+        force,
+        timeoutMs: 30000,
+        ...(accountId ? { accountId } : {}),
+      })
+      if (!isScanVersionActive(scanVersion)) return
+      weixinSessionKeyRef.current = startResult.sessionKey
+      setWeixinMessage(startResult.message ?? null)
+      setWeixinQrDataUrl(startResult.qrDataUrl ?? null)
+
+      message.info(t('channels.configDrawer.weixinScanWaiting'))
+      const waitResult = await window.api.channel.weixinScanWait({
+        timeoutMs: 120000,
+        ...(accountId ? { accountId } : {}),
+        ...(startResult.sessionKey ? { sessionKey: startResult.sessionKey } : {}),
+      })
+      if (!isScanVersionActive(scanVersion)) return
+      setWeixinMessage(waitResult.message ?? null)
+      if (waitResult.connected && waitResult.accountId) {
+        weixinSessionKeyRef.current = null
+        setWeixinQrDataUrl(null)
+        await onSave(channelKey, waitResult.accountId, {})
+        if (!isScanVersionActive(scanVersion)) return
+        showWeixinRestartNotice()
+      }
+    } catch (err) {
+      if (!isScanVersionActive(scanVersion)) return
+      weixinSessionKeyRef.current = null
+      setWeixinMessage(err instanceof Error ? err.message : String(err))
+      setWeixinQrDataUrl(null)
+    } finally {
+      if (isScanVersionActive(scanVersion)) {
+        setWeixinBusy(false)
+      }
+    }
+  }
+
+  const handleWeixinLogout = async (): Promise<void> => {
+    setWeixinBusy(true)
+    try {
+      requireGatewayReady()
+      const accountId = getTargetAccountId()
+      if (!accountId) throw new Error(t('channels.accounts.idRequired'))
+      await window.api.channel.weixinLogout(accountId)
+      weixinSessionKeyRef.current = null
+      setWeixinMessage(t('channels.configDrawer.weixinLoggedOut'))
+      setWeixinQrDataUrl(null)
+    } catch (err) {
+      setWeixinMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      setWeixinBusy(false)
+    }
+  }
+
   const handleWecomQuickCreate = async (): Promise<void> => {
     const scanVersion = nextScanVersion()
     setWecomQuickBusy(true)
@@ -219,7 +347,13 @@ export function AccountConfigDrawer({
       setVerifyStatus('idle')
       setWecomScanSuccess(true)
       setWecomAuthUrl(null)
-      message.success(t('channels.configDrawer.wecomScanSuccess'))
+      const nextAccountId = isEdit ? editingAccountId! : result.botId
+      await onSave(
+        channelKey,
+        nextAccountId,
+        { botId: result.botId, secret: result.secret },
+        { successMessage: t('channels.configDrawer.wecomConnectedReady') }
+      )
     } catch (err) {
       if (!isScanVersionActive(scanVersion)) return
       const errorText = err instanceof Error ? err.message : String(err)
@@ -275,7 +409,17 @@ export function AccountConfigDrawer({
       setVerifyStatus('idle')
       setFeishuScanSuccess(true)
       setFeishuAuthUrl(null)
-      message.success(t('channels.configDrawer.feishuScanSuccess'))
+      const nextAccountId = isEdit ? editingAccountId! : result.appId
+      await onSave(
+        channelKey,
+        nextAccountId,
+        {
+          appId: result.appId,
+          appSecret: result.appSecret,
+          domain: result.domain,
+        },
+        { successMessage: t('channels.configDrawer.feishuConnectedReady') }
+      )
     } catch (err) {
       if (!isScanVersionActive(scanVersion)) return
       const errorText = err instanceof Error ? err.message : String(err)
@@ -326,30 +470,38 @@ export function AccountConfigDrawer({
       styles={{ body: { paddingTop: 12 } }}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button
-            icon={<CheckCircleFilled />}
-            loading={verifying}
-            onClick={handleVerify}
-            style={
-              verifyStatus === 'success'
-                ? { color: '#52c41a', borderColor: '#b7eb8f' }
-                : verifyStatus === 'error'
-                  ? { color: '#ff4d4f', borderColor: '#ffccc7' }
-                  : {}
-            }
-          >
-            {verifying ? t('channels.configDrawer.verifying') : t('channels.configDrawer.verify')}
-          </Button>
+          {!shouldShowFooterActions ? (
+            <span />
+          ) : preset.key === 'openclaw-weixin' ? (
+            <span />
+          ) : (
+            <Button
+              icon={<CheckCircleFilled />}
+              loading={verifying}
+              onClick={handleVerify}
+              style={
+                verifyStatus === 'success'
+                  ? { color: '#52c41a', borderColor: '#b7eb8f' }
+                  : verifyStatus === 'error'
+                    ? { color: '#ff4d4f', borderColor: '#ffccc7' }
+                    : {}
+              }
+            >
+              {verifying ? t('channels.configDrawer.verifying') : t('channels.configDrawer.verify')}
+            </Button>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <Button onClick={onClose}>{t('common.cancel')}</Button>
-            <Button
-              type="primary"
-              loading={saving}
-              onClick={handleSubmit}
-              style={{ background: '#FF4D2A', borderColor: '#FF4D2A' }}
-            >
-              {t('common.save')}
-            </Button>
+            {shouldShowFooterActions && preset.key !== 'openclaw-weixin' && (
+              <Button
+                type="primary"
+                loading={saving}
+                onClick={handleSubmit}
+                style={{ background: '#FF4D2A', borderColor: '#FF4D2A' }}
+              >
+                {t('common.save')}
+              </Button>
+            )}
           </div>
         </div>
       }
@@ -360,166 +512,342 @@ export function AccountConfigDrawer({
         requiredMark={false}
         onValuesChange={() => setVerifyStatus('idle')}
       >
-        <Form.Item
-          name="accountId"
-          label={t('channels.accounts.idLabel')}
-          rules={[
-            { required: true, message: t('channels.accounts.idRequired') },
-            { pattern: /^[a-zA-Z0-9-]+$/, message: t('channels.accounts.idInvalid') },
-          ]}
-          extra={
-            <span style={{ fontSize: 12, color: '#8c8c8c' }}>
-              {isEdit ? t('channels.accounts.idReadOnly') : t('channels.accounts.idHint')}
-            </span>
-          }
-        >
-          <Input
-            placeholder={t('channels.accounts.idPlaceholder')}
-            disabled={isEdit}
-            style={isEdit ? { color: '#8c8c8c', background: '#fafafa' } : {}}
-          />
-        </Form.Item>
-
-        <Divider style={{ margin: '8px 0 16px' }} />
-
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-            color: '#aaa',
-            marginBottom: 10,
-          }}
-        >
-          {t('channels.configDrawer.credentials')}
-        </div>
-
-        {preset.fields.map((field) => (
-          <Form.Item
-            key={field.key}
-            name={field.key}
-            label={
+        {preset.key !== 'openclaw-weixin' || isEdit ? (
+          <>
+            {(!isQuickAuthChannel || showAdvancedSetup || isEdit) && (
+              <Form.Item
+                name="accountId"
+                label={t('channels.accounts.idLabel')}
+                rules={[
+                  { required: true, message: t('channels.accounts.idRequired') },
+                  { pattern: /^[a-zA-Z0-9-]+$/, message: t('channels.accounts.idInvalid') },
+                ]}
+                extra={
+                  <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                    {isEdit ? t('channels.accounts.idReadOnly') : t('channels.accounts.idHint')}
+                  </span>
+                }
+              >
+                <Input
+                  placeholder={t('channels.accounts.idPlaceholder')}
+                  disabled={isEdit}
+                  style={isEdit ? { color: '#8c8c8c', background: '#fafafa' } : {}}
+                />
+              </Form.Item>
+            )}
+            {isQuickAuthChannel && !isEdit && !showAdvancedSetup && (
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  width: '100%',
+                  marginBottom: 16,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: '#fff7e6',
+                  border: '1px solid #ffd591',
+                  fontSize: 12,
+                  color: '#ad6800',
+                  lineHeight: 1.6,
                 }}
               >
-                <span style={{ fontWeight: 500 }}>{field.label}</span>
-                {field.apiKeyUrl && (
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<LinkOutlined />}
-                    onClick={() => window.api.shell.openExternal(field.apiKeyUrl!)}
-                    style={{ padding: '0 0 0 8px', fontSize: 12, height: 'auto' }}
+                {t('channels.accounts.quickAuthIdAutoGenerated')}
+              </div>
+            )}
+
+            <Divider style={{ margin: '8px 0 16px' }} />
+          </>
+        ) : (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: '#fff7e6',
+              border: '1px solid #ffd591',
+              fontSize: 12,
+              color: '#ad6800',
+              lineHeight: 1.6,
+            }}
+          >
+            {t('channels.accounts.weixinIdAutoGenerated')}
+          </div>
+        )}
+
+        {isQuickAuthChannel && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: `1px solid ${preset.key === 'wecom' ? '#b7eb8f' : '#bae0ff'}`,
+              background: preset.key === 'wecom' ? '#f6ffed' : '#f0f5ff',
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+              {t('channels.configDrawer.quickAuthTitle')}
+            </div>
+            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6, marginBottom: 12 }}>
+              {preset.key === 'wecom'
+                ? t('channels.configDrawer.wecomQuickAuthDesc')
+                : t('channels.configDrawer.feishuQuickAuthDesc')}
+            </div>
+            {preset.key === 'wecom' && (
+              <div style={{ marginTop: 8, marginBottom: 4 }}>
+                <Button
+                  type="primary"
+                  loading={wecomQuickBusy}
+                  onClick={handleWecomQuickCreate}
+                  style={{ background: '#07C160', borderColor: '#07C160' }}
+                >
+                  {wecomQuickBusy
+                    ? t('channels.configDrawer.wecomScanWorking')
+                    : t('channels.configDrawer.wecomScanConnect')}
+                </Button>
+                {wecomScanSuccess && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      width: 180,
+                      height: 180,
+                      borderRadius: 10,
+                      border: '1px solid #b7eb8f',
+                      background: 'rgba(82,196,26,0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      color: '#389e0d',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      padding: 12,
+                    }}
                   >
-                    {t('channels.configDrawer.getApiKey')}
-                  </Button>
+                    {t('channels.configDrawer.wecomScanSuccessMask')}
+                  </div>
+                )}
+                {wecomAuthUrl && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
+                    <div style={scanHintStyle}>{t('channels.configDrawer.wecomScanAppHint')}</div>
+                    <div style={{ marginBottom: 8 }}>
+                      <QRCode value={wecomAuthUrl} size={180} bordered />
+                    </div>
+                  </div>
                 )}
               </div>
-            }
-            rules={field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []}
-            extra={
-              field.helpText ? (
-                <span style={{ fontSize: 12, color: '#8c8c8c' }}>{field.helpText}</span>
-              ) : undefined
-            }
-          >
-            {field.type === 'password' ? (
-              <Input.Password placeholder={field.placeholder} autoComplete="off" />
-            ) : field.type === 'select' ? (
-              <Select
-                placeholder={field.placeholder}
-                options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
-              />
-            ) : (
-              <Input placeholder={field.placeholder} />
             )}
-          </Form.Item>
-        ))}
-
-        {preset.key === 'wecom' && (
-          <div style={{ marginTop: 8, marginBottom: 12 }}>
-            <Button loading={wecomQuickBusy} onClick={handleWecomQuickCreate}>
-              {wecomQuickBusy
-                ? t('channels.configDrawer.wecomScanWorking')
-                : t('channels.configDrawer.wecomScanCreate')}
-            </Button>
-            {wecomScanSuccess && (
-              <div
-                style={{
-                  marginTop: 8,
-                  width: 180,
-                  height: 180,
-                  borderRadius: 10,
-                  border: '1px solid #b7eb8f',
-                  background: 'rgba(82,196,26,0.12)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  color: '#389e0d',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  padding: 12,
-                }}
-              >
-                {t('channels.configDrawer.wecomScanSuccessMask')}
-              </div>
-            )}
-            {wecomAuthUrl && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
-                <div style={scanHintStyle}>{t('channels.configDrawer.wecomScanAppHint')}</div>
-                <div style={{ marginBottom: 8 }}>
-                  <QRCode value={wecomAuthUrl} size={180} bordered />
-                </div>
+            {preset.key === 'feishu' && (
+              <div style={{ marginTop: 8, marginBottom: 4 }}>
+                <Button
+                  type="primary"
+                  loading={feishuQuickBusy}
+                  onClick={handleFeishuQuickCreate}
+                  style={{ background: '#3370FF', borderColor: '#3370FF' }}
+                >
+                  {feishuQuickBusy
+                    ? t('channels.configDrawer.feishuScanWorking')
+                    : t('channels.configDrawer.feishuScanConnect')}
+                </Button>
+                {feishuScanSuccess && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      width: 180,
+                      height: 180,
+                      borderRadius: 10,
+                      border: '1px solid #91caff',
+                      background: 'rgba(22,119,255,0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      color: '#0958d9',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      padding: 12,
+                    }}
+                  >
+                    {t('channels.configDrawer.feishuScanSuccessMask')}
+                  </div>
+                )}
+                {feishuAuthUrl && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
+                    <div style={scanHintStyle}>{t('channels.configDrawer.feishuScanAppHint')}</div>
+                    <div style={{ marginBottom: 8 }}>
+                      <QRCode value={feishuAuthUrl} size={180} bordered />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {preset.key === 'feishu' && (
-          <div style={{ marginTop: 8, marginBottom: 12 }}>
-            <Button loading={feishuQuickBusy} onClick={handleFeishuQuickCreate}>
-              {feishuQuickBusy
-                ? t('channels.configDrawer.feishuScanWorking')
-                : t('channels.configDrawer.feishuScanCreate')}
-            </Button>
-            {feishuScanSuccess && (
-              <div
-                style={{
-                  marginTop: 8,
-                  width: 180,
-                  height: 180,
-                  borderRadius: 10,
-                  border: '1px solid #91caff',
-                  background: 'rgba(22,119,255,0.12)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  color: '#0958d9',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  padding: 12,
-                }}
+        {preset.fields.length > 0 && !isQuickAuthChannel && (
+          <>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                color: '#aaa',
+                marginBottom: 10,
+              }}
+            >
+              {t('channels.configDrawer.credentials')}
+            </div>
+
+            {preset.fields.map((field) => (
+              <Form.Item
+                key={field.key}
+                name={field.key}
+                label={
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                    }}
+                  >
+                    <span style={{ fontWeight: 500 }}>{field.label}</span>
+                    {field.apiKeyUrl && (
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<LinkOutlined />}
+                        onClick={() => window.api.shell.openExternal(field.apiKeyUrl!)}
+                        style={{ padding: '0 0 0 8px', fontSize: 12, height: 'auto' }}
+                      >
+                        {t('channels.configDrawer.getApiKey')}
+                      </Button>
+                    )}
+                  </div>
+                }
+                rules={
+                  field.required ? [{ required: true, message: `${field.label} 不能为空` }] : []
+                }
+                extra={
+                  field.helpText ? (
+                    <span style={{ fontSize: 12, color: '#8c8c8c' }}>{field.helpText}</span>
+                  ) : undefined
+                }
               >
-                {t('channels.configDrawer.feishuScanSuccessMask')}
-              </div>
-            )}
-            {feishuAuthUrl && (
-              <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
-                <div style={scanHintStyle}>{t('channels.configDrawer.feishuScanAppHint')}</div>
-                <div style={{ marginBottom: 8 }}>
-                  <QRCode value={feishuAuthUrl} size={180} bordered />
-                </div>
-              </div>
-            )}
-          </div>
+                {field.type === 'password' ? (
+                  <Input.Password placeholder={field.placeholder} autoComplete="off" />
+                ) : field.type === 'select' ? (
+                  <Select
+                    placeholder={field.placeholder}
+                    options={field.options?.map((o) => ({ value: o.value, label: o.label }))}
+                  />
+                ) : (
+                  <Input placeholder={field.placeholder} />
+                )}
+              </Form.Item>
+            ))}
+          </>
+        )}
+        {preset.fields.length > 0 && isQuickAuthChannel && (
+          <Collapse
+            ghost
+            activeKey={showAdvancedSetup ? ['advanced'] : []}
+            onChange={(keys) =>
+              setShowAdvancedSetup(Array.isArray(keys) && keys.includes('advanced'))
+            }
+            items={[
+              {
+                key: 'advanced',
+                label: t('channels.configDrawer.manualSetupTitle'),
+                children: (
+                  <>
+                    <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 12 }}>
+                      {t('channels.configDrawer.manualSetupHint')}
+                    </div>
+                    {!isEdit && (
+                      <Form.Item
+                        name="accountId"
+                        label={t('channels.accounts.idLabel')}
+                        rules={[
+                          { required: true, message: t('channels.accounts.idRequired') },
+                          { pattern: /^[a-zA-Z0-9-]+$/, message: t('channels.accounts.idInvalid') },
+                        ]}
+                        extra={
+                          <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                            {t('channels.accounts.idHint')}
+                          </span>
+                        }
+                      >
+                        <Input placeholder={t('channels.accounts.idPlaceholder')} />
+                      </Form.Item>
+                    )}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.07em',
+                        textTransform: 'uppercase',
+                        color: '#aaa',
+                        marginBottom: 10,
+                      }}
+                    >
+                      {t('channels.configDrawer.credentials')}
+                    </div>
+                    {preset.fields.map((field) => (
+                      <Form.Item
+                        key={field.key}
+                        name={field.key}
+                        label={
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              width: '100%',
+                            }}
+                          >
+                            <span style={{ fontWeight: 500 }}>{field.label}</span>
+                            {field.apiKeyUrl && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<LinkOutlined />}
+                                onClick={() => window.api.shell.openExternal(field.apiKeyUrl!)}
+                                style={{ padding: '0 0 0 8px', fontSize: 12, height: 'auto' }}
+                              >
+                                {t('channels.configDrawer.getApiKey')}
+                              </Button>
+                            )}
+                          </div>
+                        }
+                        rules={
+                          field.required
+                            ? [{ required: true, message: `${field.label} 不能为空` }]
+                            : []
+                        }
+                        extra={
+                          field.helpText ? (
+                            <span style={{ fontSize: 12, color: '#8c8c8c' }}>{field.helpText}</span>
+                          ) : undefined
+                        }
+                      >
+                        {field.type === 'password' ? (
+                          <Input.Password placeholder={field.placeholder} autoComplete="off" />
+                        ) : field.type === 'select' ? (
+                          <Select
+                            placeholder={field.placeholder}
+                            options={field.options?.map((o) => ({
+                              value: o.value,
+                              label: o.label,
+                            }))}
+                          />
+                        ) : (
+                          <Input placeholder={field.placeholder} />
+                        )}
+                      </Form.Item>
+                    ))}
+                  </>
+                ),
+              },
+            ]}
+          />
         )}
 
         {preset.key === 'whatsapp' && (
@@ -548,6 +876,57 @@ export function AccountConfigDrawer({
                   alt="whatsapp-qr"
                   style={{ width: 180, height: 180, borderRadius: 8, border: '1px solid #f0f0f0' }}
                 />
+              </div>
+            )}
+          </div>
+        )}
+
+        {preset.key === 'openclaw-weixin' && (
+          <div style={{ marginTop: 8, marginBottom: 12 }}>
+            <div
+              style={{
+                marginBottom: 10,
+                padding: '10px 12px',
+                borderRadius: 10,
+                background: '#f6ffed',
+                border: '1px solid #b7eb8f',
+                fontSize: 12,
+                color: '#237804',
+                lineHeight: 1.6,
+              }}
+            >
+              {weixinStatus?.bundled
+                ? t('channels.configDrawer.weixinBundledReady')
+                : t('channels.configDrawer.weixinBundledMissing')}
+              {weixinStatus?.enabled === false
+                ? ` ${t('channels.configDrawer.weixinPluginDisabled')}`
+                : ''}
+              {weixinStatus?.configMissing
+                ? ` ${t('channels.configDrawer.weixinConfigMissing')}`
+                : ''}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <Button
+                type="primary"
+                loading={weixinBusy}
+                onClick={() => handleWeixinStart(isEdit)}
+                style={{ background: '#07C160', borderColor: '#07C160' }}
+              >
+                {isEdit
+                  ? t('channels.configDrawer.weixinRelink')
+                  : t('channels.configDrawer.weixinConnect')}
+              </Button>
+              <Button danger loading={weixinBusy} onClick={handleWeixinLogout} disabled={!isEdit}>
+                {t('channels.configDrawer.weixinLogout')}
+              </Button>
+            </div>
+            {weixinMessage && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>{weixinMessage}</div>
+            )}
+            {weixinQrDataUrl && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
+                <div style={scanHintStyle}>{t('channels.configDrawer.weixinScanHint')}</div>
+                <QRCode value={weixinQrDataUrl} size={180} bordered />
               </div>
             )}
           </div>

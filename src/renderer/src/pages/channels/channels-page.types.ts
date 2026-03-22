@@ -106,7 +106,11 @@ export interface ChannelConfigDrawerProps {
   preset: ChannelPresetForUI | null
   existingConfig?: ChannelConfig
   onClose: () => void
-  onSave: (preset: ChannelPresetForUI, config: ChannelConfig) => Promise<void>
+  onSave: (
+    preset: ChannelPresetForUI,
+    config: ChannelConfig,
+    options?: { successMessage?: string }
+  ) => Promise<void>
   saving: boolean
 }
 
@@ -117,6 +121,11 @@ export interface AccountConfigDrawerProps {
   editingAccountId: string | null
   editingAccountData: Record<string, unknown> | null
   onClose: () => void
-  onSave: (channelKey: string, accountId: string, data: Record<string, unknown>) => Promise<void>
+  onSave: (
+    channelKey: string,
+    accountId: string,
+    data: Record<string, unknown>,
+    options?: { successMessage?: string }
+  ) => Promise<void>
   saving: boolean
 }
