@@ -130,15 +130,7 @@ export async function createAgentViaCli(
   }
 
   const workspace = resolveWorkspaceForNewAgent(normalizedId)
-  const args = [
-    'agents',
-    'add',
-    rawId,
-    '--workspace',
-    workspace,
-    '--non-interactive',
-    '--json',
-  ]
+  const args = ['agents', 'add', rawId, '--workspace', workspace, '--non-interactive', '--json']
 
   if (typeof agent.model === 'string' && agent.model.trim()) {
     args.push('--model', agent.model.trim())
